@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>يا أين الحلال - الجرس</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Cairo", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: linear-gradient(160deg, #fff8e1, #ffe0b2);
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        color: #2d1b00;
+      }
+
+      .app {
+        width: min(95vw, 650px);
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 24px;
+        padding: 20px;
+        box-shadow: 0 20px 50px rgba(80, 50, 0, 0.2);
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: clamp(1.3rem, 4.5vw, 2.1rem);
+      }
+
+      .join {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      input,
+      button {
+        font: inherit;
+        border-radius: 12px;
+        border: 1px solid #e0c18f;
+        padding: 10px 14px;
+      }
+
+      input {
+        flex: 1;
+        min-width: 180px;
+      }
+
+      button {
+        background: #ffca28;
+        color: #362000;
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .ring {
+        width: 100%;
+        margin-top: 18px;
+        border: none;
+        border-radius: 18px;
+        padding: 20px;
+        font-size: clamp(1.1rem, 7vw, 2.4rem);
+        background: #ff9800;
+        color: white;
+      }
+
+      .winner {
+        margin-top: 16px;
+        border: 2px dashed #ff9800;
+        border-radius: 18px;
+        padding: 12px;
+        background: #fff8e1;
+      }
+
+      .players {
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .players li {
+        background: #fff3cd;
+        border: 1px solid #f4d79a;
+        border-radius: 999px;
+        padding: 6px 12px;
+      }
+
+      .hint {
+        font-size: 0.9rem;
+        opacity: 0.8;
+      }
+
+      .error {
+        color: #b71c1c;
+        min-height: 1.5em;
+        margin-top: 8px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <h1>🔔 يا أين الحلال</h1>
+      <p class="hint">كل واحد يدخل يكتب اسمه. أول واحد يضغط على الجرس اسمه يظهر كفائز.</p>
+
+      <section class="join">
+        <input id="nameInput" type="text" placeholder="اكتب اسمك" maxlength="40" />
+        <button id="joinBtn">تسجيل</button>
+        <button id="resetBtn">إعادة الجولة</button>
+      </section>
+
+      <p id="error" class="error"></p>
+
+      <button id="ringBtn" class="ring" disabled>🔔 اضغط الجرس</button>
+
+      <section class="winner" id="winnerBox">
+        <strong>لا يوجد فائز بعد.</strong>
+      </section>
+
+      <h3>المشاركين الآن:</h3>
+      <ul id="playersList" class="players"></ul>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+
+      const nameInput = document.getElementById('nameInput');
+      const joinBtn = document.getElementById('joinBtn');
+      const ringBtn = document.getElementById('ringBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const winnerBox = document.getElementById('winnerBox');
+      const playersList = document.getElementById('playersList');
+      const errorBox = document.getElementById('error');
+
+      let isJoined = false;
+      let currentWinner = null;
+
+      function renderWinner(winner) {
+        if (!winner) {
+          winnerBox.innerHTML = '<strong>لا يوجد فائز بعد.</strong>';
+          return;
+        }
+
+        winnerBox.innerHTML = `<strong>🏆 الفائز: ${winner.name}</strong>`;
+      }
+
+      function renderPlayers(players) {
+        playersList.innerHTML = '';
+        for (const player of players) {
+          const li = document.createElement('li');
+          li.textContent = player.name;
+          playersList.appendChild(li);
+        }
+      }
+
+      joinBtn.addEventListener('click', () => {
+        const name = nameInput.value.trim();
+        socket.emit('player:join', { name });
+      });
+
+      ringBtn.addEventListener('click', () => {
+        socket.emit('bell:ring');
+      });
+
+      resetBtn.addEventListener('click', () => {
+        socket.emit('round:reset');
+      });
+
+      socket.on('player:error', ({ message }) => {
+        errorBox.textContent = message;
+      });
+
+      socket.on('state:update', ({ players, winner }) => {
+        currentWinner = winner;
+        errorBox.textContent = '';
+
+        const myName = nameInput.value.trim();
+        const amInPlayers = players.some((player) => player.name === myName);
+        if (amInPlayers) {
+          isJoined = true;
+          nameInput.disabled = true;
+          joinBtn.disabled = true;
+        }
+
+        ringBtn.disabled = !isJoined || Boolean(currentWinner);
+
+        renderWinner(winner);
+        renderPlayers(players);
+      });
+    </script>
+  </body>
+</html>
